@@ -2,21 +2,21 @@
 import csv
 import os
 import random
-
 import click
-
-from . import cyclegan_datasets
-
+import cyclegan_datasets
+"""
+本程序的主要目的就是根据cyclegan_datasets中的配置
+将需要输入的图片的位置信息，写入到一个.csv文件中
+便于后面取图像数据
+"""
 
 def create_list(foldername, fulldir=True, suffix=".jpg"):
     """
-
     :param foldername: The full path of the folder.
     :param fulldir: Whether to return the full path or not.
     :param suffix: Filter by suffix.
 
     :return: The list of filenames in the folder with given suffix.
-
     """
     file_list_tmp = os.listdir(foldername)
     file_list = []
@@ -34,15 +34,15 @@ def create_list(foldername, fulldir=True, suffix=".jpg"):
 @click.command()
 @click.option('--image_path_a',
               type=click.STRING,
-              default='./input/horse2zebra/trainA',
+              default='./input/horse2zebra/testA',
               help='The path to the images from domain_a.')
 @click.option('--image_path_b',
               type=click.STRING,
-              default='./input/horse2zebra/trainB',
+              default='./input/horse2zebra/testB',
               help='The path to the images from domain_b.')
 @click.option('--dataset_name',
               type=click.STRING,
-              default='horse2zebra_train',
+              default='horse2zebra_test',
               help='The name of the dataset in cyclegan_dataset.')
 @click.option('--do_shuffle',
               type=click.BOOL,
@@ -66,8 +66,14 @@ def create_dataset(image_path_a, image_path_b,
         ))
     if do_shuffle is True:
         random.shuffle(all_data_tuples)
-    with open(output_path, 'w') as csv_file:
+    # if not os.path.exists(output_path):
+    #     os.m
+    #you konw if the open function do not have newline=''
+    #the result csv may have the empty line
+    with open(output_path, 'w',newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
+        #enumerate是一个枚举型，返回的是遍历索引，以及对应的遍历元素
+        #enumerate(list,number),第二个参数数指定索引的起始值
         for data_tuple in enumerate(all_data_tuples):
             csv_writer.writerow(list(data_tuple[1]))
 

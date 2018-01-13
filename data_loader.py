@@ -1,9 +1,11 @@
 import tensorflow as tf
+import cyclegan_datasets
+import model
 
-from . import cyclegan_datasets
-from . import model
-
-
+"""
+就是利用tf的机制，将文件列表输入，返回一行行记录
+并用，，，
+"""
 def _load_samples(csv_name, image_type):
     filename_queue = tf.train.string_input_producer(
         [csv_name])
@@ -48,7 +50,7 @@ def load_data(dataset_name, image_size_before_crop,
                          % dataset_name)
 
     csv_name = cyclegan_datasets.PATH_TO_CSV[dataset_name]
-
+    #进行数据的加载
     image_i, image_j = _load_samples(
         csv_name, cyclegan_datasets.DATASET_TO_IMAGETYPE[dataset_name])
     inputs = {
@@ -57,20 +59,23 @@ def load_data(dataset_name, image_size_before_crop,
     }
 
     # Preprocessing:
+    #进行图片大小的调整，调整为image_size_before_crop=286大小
     inputs['image_i'] = tf.image.resize_images(
         inputs['image_i'], [image_size_before_crop, image_size_before_crop])
     inputs['image_j'] = tf.image.resize_images(
         inputs['image_j'], [image_size_before_crop, image_size_before_crop])
 
     if do_flipping is True:
+        #进行图片的翻转--左右
         inputs['image_i'] = tf.image.random_flip_left_right(inputs['image_i'])
         inputs['image_j'] = tf.image.random_flip_left_right(inputs['image_j'])
-
+    #按特定的大小对调整后的图片进行修剪
     inputs['image_i'] = tf.random_crop(
         inputs['image_i'], [model.IMG_HEIGHT, model.IMG_WIDTH, 3])
     inputs['image_j'] = tf.random_crop(
         inputs['image_j'], [model.IMG_HEIGHT, model.IMG_WIDTH, 3])
-
+    #这里是在对图像进行归一化的处理，将范围控制在[-1,1]在做这一步的前提是要将原始的图像进行大小的扩充，主要的目的就是将每个像素点的灰度值变为float类型
+    #不然的化，会出现错误
     inputs['image_i'] = tf.subtract(tf.div(inputs['image_i'], 127.5), 1)
     inputs['image_j'] = tf.subtract(tf.div(inputs['image_j'], 127.5), 1)
 
@@ -81,5 +86,5 @@ def load_data(dataset_name, image_size_before_crop,
     else:
         inputs['images_i'], inputs['images_j'] = tf.train.batch(
             [inputs['image_i'], inputs['image_j']], 1)
-
+    #注意:这里的inputs可是有四张图片啊images_i，images_j，image_i,image_j
     return inputs

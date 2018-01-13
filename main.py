@@ -9,8 +9,8 @@ from scipy.misc import imsave
 import click
 import tensorflow as tf
 
-from . import cyclegan_datasets
-from . import data_loader, losses, model
+import cyclegan_datasets
+import data_loader, losses, model
 
 slim = tf.contrib.slim
 
@@ -39,11 +39,12 @@ class CycleGAN:
         self._checkpoint_dir = checkpoint_dir
         self._do_flipping = do_flipping
         self._skip = skip
-
+        #生成fakeA图像的数组
         self.fake_images_A = np.zeros(
             (self._pool_size, 1, model.IMG_HEIGHT, model.IMG_WIDTH,
              model.IMG_CHANNELS)
         )
+        # 生成fakeB图像的数组
         self.fake_images_B = np.zeros(
             (self._pool_size, 1, model.IMG_HEIGHT, model.IMG_WIDTH,
              model.IMG_CHANNELS)
@@ -56,9 +57,11 @@ class CycleGAN:
         self.input_A/self.input_B -> Set of training images.
         self.fake_A/self.fake_B -> Generated images by corresponding generator
         of input_A and input_B
+
         self.lr -> Learning rate variable
         self.cyc_A/ self.cyc_B -> Images generated after feeding
         self.fake_A/self.fake_B to corresponding generator.
+
         This is use to calculate cyclic loss
         """
         self.input_a = tf.placeholder(
@@ -90,7 +93,7 @@ class CycleGAN:
                 model.IMG_HEIGHT,
                 model.IMG_CHANNELS
             ], name="fake_pool_B")
-
+        #这里是什么意思？？？？？
         self.global_step = slim.get_or_create_global_step()
 
         self.num_fake_inputs = 0
@@ -130,6 +133,7 @@ class CycleGAN:
         *_trainer -> Various trainer for above loss functions
         *_summ -> Summary variables for above loss functions
         """
+        #循环一致损失函数，就是一个惩罚因子乘上两张图片的L1距离
         cycle_consistency_loss_a = \
             self._lambda_a * losses.cycle_consistency_loss(
                 real_images=self.input_a, generated_images=self.cycle_images_a,
@@ -139,6 +143,7 @@ class CycleGAN:
                 real_images=self.input_b, generated_images=self.cycle_images_b,
             )
 
+        #实质就是tf.squared_difference(prob_fake_is_real, 1)
         lsgan_loss_a = losses.lsgan_loss_generator(self.prob_fake_a_is_real)
         lsgan_loss_b = losses.lsgan_loss_generator(self.prob_fake_b_is_real)
 
@@ -147,6 +152,9 @@ class CycleGAN:
         g_loss_B = \
             cycle_consistency_loss_b + cycle_consistency_loss_a + lsgan_loss_a
 
+
+         #这里的损失函数就有点看不懂了？？？？？？
+        #这里实质就是原始GAN交叉熵的变形
         d_loss_A = losses.lsgan_loss_discriminator(
             prob_real_is_real=self.prob_real_a_is_real,
             prob_fake_is_real=self.prob_fake_pool_a_is_real,
@@ -246,6 +254,8 @@ class CycleGAN:
     def train(self):
         """Training Function."""
         # Load Dataset from the dataset folder
+        # 注意:这里的inputs可是有四张图片啊images_i，images_j，image_i,image_j
+        #而且image_i,j是三维的，而images_i,j是四维的
         self.inputs = data_loader.load_data(
             self._dataset_name, self._size_before_crop,
             True, self._do_flipping)
@@ -259,6 +269,8 @@ class CycleGAN:
         # Initializing the global variables
         init = (tf.global_variables_initializer(),
                 tf.local_variables_initializer())
+        #Saver类提供了向checkpoints文件保存和从checkpoints文件中恢复变量的相关方法。
+        # Checkpoints文件是一个二进制文件，它把变量名映射到对应的tensor值
         saver = tf.train.Saver()
 
         max_images = cyclegan_datasets.DATASET_TO_SIZES[self._dataset_name]
@@ -268,10 +280,15 @@ class CycleGAN:
 
             # Restore the model to run the model from last checkpoint
             if self._to_restore:
+                #tf.train.latest_checkpoint来自动获取最后一次保存的模型
                 chkpt_fname = tf.train.latest_checkpoint(self._checkpoint_dir)
-                saver.restore(sess, chkpt_fname)
-
-            writer = tf.summary.FileWriter(self._output_dir)
+                if chkpt_fname is not None:
+                    #模型的恢复用的是restore()函数，它需要两个参数restore(sess, save_path)，
+                    # save_path指的是保存的模型路径。我们可以使用tf.train.latest_checkpoint（）
+                    # 来自动获取最后一次保存的模型
+                    saver.restore(sess, chkpt_fname)
+            #这个是tensorflowborder中的组件，主要用于记录变量的变化过程，
+            writer = tf.summary.FileWriter(self._output_dir,tf.get_default_graph())
 
             if not os.path.exists(self._output_dir):
                 os.makedirs(self._output_dir)
@@ -292,17 +309,20 @@ class CycleGAN:
                     curr_lr = self._base_lr - \
                         self._base_lr * (epoch - 100) / 100
 
+                #将输入input_a,input_b,fake_a,fake_b,cycle_a,cycle_b根据第几轮，第几张图进行保存
                 self.save_images(sess, epoch)
 
+                #进行损失函数的优化过程，一次优化的次数和图像的数量有关，因为minibatch_size的大小是1
                 for i in range(0, max_images):
                     print("Processing batch {}/{}".format(i, max_images))
-
+                    #这里self.inputs开始起效，就是开始加载图片进来（其实在self.save_images(sess,epoch)中inputs就开始生效了）
                     inputs = sess.run(self.inputs)
 
-                    # Optimizing the G_A network
+                    # Optimizing the G_A network----这里有3个返回值，分别是什么？？？？？？？？
+                    #原来返回的就是这三个值。
                     _, fake_B_temp, summary_str = sess.run(
                         [self.g_A_trainer,
-                         self.fake_images_b,
+                         self.fake_images_b,  #？？？？？？？？？？？？？？？？
                          self.g_A_loss_summ],
                         feed_dict={
                             self.input_a:
@@ -312,8 +332,11 @@ class CycleGAN:
                             self.learning_rate: curr_lr
                         }
                     )
+                    #加入到tensorflowborder中
                     writer.add_summary(summary_str, epoch * max_images + i)
 
+                    #这里维持着一个容量为50的图像池，存放于self.fake_images_B，在容量没达到50之前，返回的是fake_B_temp,容量达到50后，随机返回池中的图像
+                    # （实质就是容量满了以后，fake_B_temp返回的概率是0.5，其它50返回的概率是0.5）
                     fake_B_temp1 = self.fake_image_pool(
                         self.num_fake_inputs, fake_B_temp, self.fake_images_B)
 
@@ -388,7 +411,10 @@ class CycleGAN:
             sess.run(init)
 
             chkpt_fname = tf.train.latest_checkpoint(self._checkpoint_dir)
-            saver.restore(sess, chkpt_fname)
+            #this is vital important the have the if
+            if chkpt_fname is not None:
+                saver.restore(sess, chkpt_fname)
+                print(chkpt_fname)
 
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
@@ -401,27 +427,49 @@ class CycleGAN:
             coord.join(threads)
 
 
+#@click.command()
+# @click.option('--to_train',
+#               type=click.INT,
+#               default=True,
+#               help='Whether it is train or false.')
+# @click.option('--log_dir',
+#               type=click.STRING,
+#               default=None,
+#               help='Where the data is logged to.')
+# @click.option('--config_filename',
+#               type=click.STRING,
+#               default='train',
+#               help='The name of the configuration file.')
+# @click.option('--checkpoint_dir',
+#               type=click.STRING,
+#               default='',
+#               help='The name of the train/test split.')
+# @click.option('--skip',
+#               type=click.BOOL,
+#               default=False,
+#               help='Whether to add skip connection between input and output.')
 @click.command()
 @click.option('--to_train',
               type=click.INT,
-              default=True,
+              default=2,
               help='Whether it is train or false.')
 @click.option('--log_dir',
               type=click.STRING,
-              default=None,
+              default='./output/cyclegan/exp_01',
               help='Where the data is logged to.')
 @click.option('--config_filename',
               type=click.STRING,
-              default='train',
+              default='./configs/exp_01.json',
               help='The name of the configuration file.')
 @click.option('--checkpoint_dir',
               type=click.STRING,
-              default='',
+              default='./output/cyclegan/exp_01',
               help='The name of the train/test split.')
 @click.option('--skip',
               type=click.BOOL,
               default=False,
               help='Whether to add skip connection between input and output.')
+
 def main(to_train, log_dir, config_filename, checkpoint_dir, skip):
     """
 
@@ -447,11 +495,11 @@ def main(to_train, log_dir, config_filename, checkpoint_dir, skip):
 
     to_restore = (to_train == 2)
     base_lr = float(config['base_lr']) if 'base_lr' in config else 0.0002
-    max_step = int(config['max_step']) if 'max_step' in config else 200
+    max_step = int(config['max_step']) if 'max_step' in config else 2
     network_version = str(config['network_version'])
     dataset_name = str(config['dataset_name'])
-    do_flipping = bool(config['do_flipping'])
-
+    do_flipping = bool(config['do_flipping'])#是否进行翻转
+    #初始化实例对象
     cyclegan_model = CycleGAN(pool_size, lambda_a, lambda_b, log_dir,
                               to_restore, base_lr, max_step, network_version,
                               dataset_name, checkpoint_dir, do_flipping, skip)

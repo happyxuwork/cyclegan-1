@@ -29,7 +29,7 @@ def instance_norm(x):
 
         return out
 
-
+#这就是一个卷积层的实现
 def general_conv2d(inputconv, o_d=64, f_h=7, f_w=7, s_h=1, s_w=1, stddev=0.02,
                    padding="VALID", name="conv2d", do_norm=True, do_relu=True,
                    relufactor=0):
