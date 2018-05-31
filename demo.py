@@ -8,6 +8,7 @@
 
 import tensorflow as tf
 import numpy as np
+import tensorlayer
 
 '''
 进行批加载
@@ -43,6 +44,9 @@ import numpy as np
 #     finally:
 #         coord.request_stop()
 #     coord.join(threads)
+
+
+
 
 '''
 进行文件的读写操作
